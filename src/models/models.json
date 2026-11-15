@@ -1,0 +1,52 @@
+[
+    {
+        "alias": "bert",
+        "hf_name": "google-bert/bert-base-uncased",
+        "embedding_dim": 768,
+        "max_seq_length": 512,
+        "normalize_embeddings": true,
+        "pooling_mode": "mean",
+        "display_name": "BERT Base",
+        "tags": ["baseline", "512-tokens"]
+    },
+    {
+        "alias": "roberta",
+        "hf_name": "FacebookAI/roberta-base",
+        "embedding_dim": 768,
+        "max_seq_length": 512,
+        "normalize_embeddings": true,
+        "pooling_mode": "mean",
+        "display_name": "RoBERTa Base",
+        "tags": ["baseline", "512-tokens"]
+    },
+    {
+        "alias": "modernbert",
+        "hf_name": "answerdotai/ModernBERT-base",
+        "embedding_dim": 768,
+        "max_seq_length": 8192,
+        "normalize_embeddings": true,
+        "pooling_mode": "mean",
+        "display_name": "ModernBERT Base",
+        "tags": ["long-context"]
+    },
+    {
+        "alias": "bge",
+        "hf_name": "BAAI/bge-m3",
+        "embedding_dim": 768,
+        "max_seq_length": 512,
+        "normalize_embeddings": true,
+        "pooling_mode": "cls",
+        "display_name": "BGE M3 EN",
+        "tags": ["specialized", "long-context"]
+    },
+    {
+        "alias": "rexbert",
+        "hf_name": "thebajajra/RexBERT-base",
+        "embedding_dim": 768,
+        "max_seq_length": 8192,
+        "normalize_embeddings": true,
+        "pooling_mode": "mean",
+        "display_name": "RexBERT Base",
+        "tags": ["long-context", "specialized"]
+    }
+]
