@@ -32,18 +32,18 @@
     {
         "alias": "bge",
         "hf_name": "BAAI/bge-m3",
-        "embedding_dim": 768,
-        "max_seq_length": 512,
+        "embedding_dim": 1024,
+        "max_seq_length": 8192,
         "normalize_embeddings": true,
         "pooling_mode": "cls",
-        "display_name": "BGE M3 EN",
+        "display_name": "BGE-M3",
         "tags": ["specialized", "long-context"]
     },
     {
         "alias": "rexbert",
         "hf_name": "thebajajra/RexBERT-base",
         "embedding_dim": 768,
-        "max_seq_length": 8192,
+        "max_seq_length": 7999,
         "normalize_embeddings": true,
         "pooling_mode": "mean",
         "display_name": "RexBERT Base",

@@ -14,6 +14,7 @@ Os notebooks rodam em sequência e foram feitos para o Google Colab.
 | `01_prepare_data.ipynb` | Filtra locale, amostra 200 mil produtos, EDA | `data/raw/*.parquet` | `data/processed/products_us.parquet`, `examples_us.parquet` |
 | `02_indexing.ipynb` | Sobe o Elasticsearch, indexa BM25 e um índice por modelo, valida | `data/processed/products_us.parquet` | Índices `esci-<modelo>-us` |
 | `03_evaluation.ipynb` | Calcula nDCG@k e latência, analisa os resultados | `examples_us.parquet` + índices | `results/elasticsearch/*.json` |
+| `02_03_index_and_evaluate.ipynb` | Junta os notebooks 02 e 03 em uma única sessão (recomendado no Colab) | `data/processed/*.parquet` | Índices + `results/elasticsearch/*.json` |
 | `04_results_analysis.ipynb` | Tabelas (CSV, Markdown, LaTeX), gráficos, hipóteses | `results/elasticsearch/all_results.json` | `results/report/` |
 
 O notebook 01 baixa os dados do [repositório oficial do ESCI](https://github.com/amazon-science/esci-data/tree/main/shopping_queries_dataset)
