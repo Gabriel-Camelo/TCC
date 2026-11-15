@@ -34,7 +34,6 @@ import warnings
 
 import numpy as np
 import polars as pl
-import torch
 from elasticsearch import Elasticsearch
 from elasticsearch.helpers import BulkIndexError, bulk
 from tqdm import tqdm
@@ -44,18 +43,22 @@ from src.elasticsearch.mappings import (
     build_embedding_mapping,
     restore_refresh_interval,
 )
-from src.models.core import load_model, unload_model
 from src.models.registry import (
     BM25_INDEX_NAME,
     ModelConfig,
     get_model_config,
     list_models,
 )
+from src.text import EMBEDDING_FIELDS as _EMBEDDING_FIELDS
+from src.text import FIELD_SEPARATOR as _FIELD_SEPARATOR
+from src.text import FrameLike, prepare_dataframe
+
+# torch e src.models.core (que carrega sentence-transformers) são importados apenas em
+# `index_model`, para que `index_from_embeddings` rode sem essas dependências.
 
 logger = logging.getLogger(__name__)
 
-# Type aliases nativos do Python 3.12+ (PEP 695)
-type FrameLike = pl.DataFrame | pl.LazyFrame
+# Type alias nativo do Python 3.12+ (PEP 695)
 type ESDocument = dict[str, Any]
 
 
@@ -78,16 +81,6 @@ class EmbeddingModel(Protocol):
 # ---------------------------------------------------------------------------
 # Configuração de campos
 # ---------------------------------------------------------------------------
-
-_EMBEDDING_FIELDS: tuple[str, ...] = (
-    "product_title",
-    # "product_brand",
-    # "product_color",
-    # "product_bullet_point",
-    # "product_description",
-)
-
-_FIELD_SEPARATOR = " | "
 
 _BASE_DOC_FIELDS: tuple[str, ...] = (
     "product_id",
@@ -120,32 +113,6 @@ def build_product_text(row: dict[str, Any]) -> str:
         if isinstance((val := row.get(field)), str) and val.strip()
     ]
     return _FIELD_SEPARATOR.join(parts)
-
-
-def prepare_dataframe(df: FrameLike) -> pl.DataFrame:
-    """
-    Garante que o DataFrame tenha a coluna `product_text` e retorna um
-    DataFrame eager pronto para indexação.
-
-    Utiliza `pl.concat_str` nativo do Polars para concatenar colunas em Rust
-    sem materializar dicionários Python na memória.
-    """
-    lf = df.lazy() if isinstance(df, pl.DataFrame) else df
-    schema_names = lf.collect_schema().names()
-
-    if "product_locale" in schema_names:
-        lf = lf.filter(pl.col("product_locale") == "us")
-
-    text_exprs = [
-        pl.col(field).cast(pl.String).fill_null("")
-        if field in schema_names
-        else pl.lit("")
-        for field in _EMBEDDING_FIELDS
-    ]
-
-    return lf.with_columns(
-        pl.concat_str(text_exprs, separator=_FIELD_SEPARATOR).alias("product_text")
-    ).collect()
 
 
 # ---------------------------------------------------------------------------
@@ -198,6 +165,10 @@ class Indexer:
         """
         Cria o índice e indexa todos os produtos US com embeddings do modelo.
         """
+        import torch
+
+        from src.models.core import load_model, unload_model
+
         config = get_model_config(alias)
         df = self._ensure_prepared(products_df)
         total_docs = df.height
@@ -240,6 +211,44 @@ class Indexer:
             # Garante liberação da VRAM/RAM mesmo se ocorrer erro no meio do processo
             unload_model(alias, device=self.device)
             logger.debug("Modelo %s liberado da memória.", alias)
+
+    def index_from_embeddings(
+        self,
+        alias: str,
+        products_df: FrameLike,
+        embeddings_df: pl.DataFrame,
+    ) -> None:
+        """
+        Cria o índice e indexa os produtos US usando embeddings já calculados
+        (colunas `product_id` e `embedding`), sem carregar nenhum modelo.
+
+        Raises
+        ------
+        ValueError
+            Se algum produto não tiver embedding correspondente.
+        """
+        config = get_model_config(alias)
+        df = self._ensure_prepared(products_df)
+        total_docs = df.height
+
+        if self._should_skip_indexing(config.es_index_name, total_docs):
+            return
+
+        joined = df.join(embeddings_df.select("product_id", "embedding"), on="product_id", how="left")
+        missing = joined["embedding"].null_count()
+        if missing:
+            raise ValueError(f"{missing} produtos sem embedding para o modelo '{alias}'. Gere os embeddings novamente.")
+
+        logger.info(
+            "Iniciando indexação — modelo: %s | índice: %s | docs: %d (embeddings pré-calculados)",
+            alias,
+            config.es_index_name,
+            total_docs,
+        )
+        self._prepare_index(config.es_index_name, build_embedding_mapping(config))
+        self._bulk_index(doc_generator=self._precomputed_doc_generator(joined, config))
+        self._finalize_index(config.es_index_name)
+        logger.info("Indexação concluída — %s", config.es_index_name)
 
     def index_bm25(self, products_df: FrameLike) -> None:
         """
@@ -324,6 +333,24 @@ class Indexer:
                             **self._base_doc(row),
                             "embedding": emb,
                         },
+                    }
+                pbar.update(batch_df.height)
+
+    def _precomputed_doc_generator(self, df: pl.DataFrame, config: ModelConfig) -> Iterator[ESDocument]:
+        """
+        Gera documentos para a bulk API a partir de um DataFrame que já contém a coluna `embedding`.
+        """
+        needed_cols = [c for c in _BASE_DOC_FIELDS if c in df.columns] + ["embedding"]
+        sliced_df = df.select(needed_cols)
+
+        with tqdm(total=df.height, desc=f"Indexando {config.es_index_name}", unit="doc") as pbar:
+            for batch_df in sliced_df.iter_slices(n_rows=self.batch_size):
+                for row in batch_df.iter_rows(named=True):
+                    embedding = row.pop("embedding")
+                    yield {
+                        "_index": config.es_index_name,
+                        "_id": row["product_id"],
+                        "_source": {**self._base_doc(row), "embedding": embedding},
                     }
                 pbar.update(batch_df.height)
 
