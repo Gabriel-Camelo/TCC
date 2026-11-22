@@ -255,8 +255,7 @@ class Searcher:
             "multi_match": {
                 "query": query_text,
                 "fields": _BM25_FIELDS,
-                "type": "best_fields",
-                "tie_breaker": 0.3,
+                "type": "most_fields",  # soma os scores dos campos (tie_breaker não se aplica)
             }
         }
 
@@ -272,12 +271,13 @@ class Searcher:
         """Gera o vetor da query usando o mesmo modelo e normalização da indexação."""
         config = get_model_config(alias)
         model: QueryEncoder = load_model(alias, device=self.device)
+        text = f"{config.query_prompt}{query_text}" if config.query_prompt else query_text
         embedding = model.encode(
-            query_text,
+            text,
             normalize_embeddings=config.normalize_embeddings,
             convert_to_numpy=True,
         )
-        return embedding.tolist()
+        return embedding.astype(np.float32, copy=False).tolist()
 
     @staticmethod
     def _parse_hits(raw_hits: list[RawHit]) -> list[SearchHit]:

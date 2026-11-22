@@ -32,6 +32,8 @@ from pathlib import Path
 
 import numpy as np
 import polars as pl
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 from src.models.registry import ModelConfig, get_model_config
 from src.text import EMBEDDING_FIELDS, FIELD_SEPARATOR
@@ -166,16 +168,26 @@ def generate_embeddings(
     finally:
         unload_model(alias, device=device)
 
+    if config.normalize_embeddings:
+        # Modelos em float16 (GPU) normalizam com pouca precisão; renormaliza em float32.
+        norms = np.linalg.norm(vectors, axis=1, keepdims=True)
+        vectors /= np.where(norms > 0, norms, 1.0)
+
     _validate_vectors(vectors, config, n_docs)
 
-    frame = pl.DataFrame(
+    # Tabela Arrow com FixedSizeList construída sem copiar a matriz (importa com o catálogo completo,
+    # em que a matriz tem vários GB). O parquet resultante é lido normalmente como Array[Float32, dim].
+    table = pa.table(
         {
-            "product_id": prepared_df["product_id"],
-            "embedding": pl.Series("embedding", vectors, dtype=pl.Array(pl.Float32, config.embedding_dim)),
+            "product_id": prepared_df["product_id"].to_arrow(),
+            "embedding": pa.FixedSizeListArray.from_arrays(
+                pa.array(np.ascontiguousarray(vectors).reshape(-1)), config.embedding_dim
+            ),
         }
     )
     temporary = final.with_name(final.name + ".tmp")
-    frame.write_parquet(temporary, compression="zstd")
+    pq.write_table(table, temporary, compression="zstd")
+    del table, vectors
     temporary.replace(final)
 
     try:

@@ -63,6 +63,14 @@ class ModelConfig:
     # Exemplos: "mean", "cls", "max"  |  None = usar o pooling padrão da config do modelo
     pooling_mode: str | None = None
 
+    # Prefixo aplicado apenas às queries na busca (modelos com instrução, ex.: Qwen3-Embedding).
+    # Os documentos são indexados sem prefixo. None = sem prefixo.
+    query_prompt: str | None = None
+
+    # Converte o modelo para float16 quando roda em GPU ("float16" | None). Na CPU permanece float32.
+    # Necessário para modelos maiores caberem/rodarem rápido numa T4 (que não suporta bfloat16).
+    gpu_dtype: str | None = None
+
     # Rótulo legível para tabelas e gráficos
     display_name: str = ""
 

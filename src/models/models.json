@@ -48,5 +48,17 @@
         "pooling_mode": "mean",
         "display_name": "RexBERT Base",
         "tags": ["long-context", "specialized"]
+    },
+    {
+        "alias": "qwen",
+        "hf_name": "Qwen/Qwen3-Embedding-0.6B",
+        "embedding_dim": 1024,
+        "max_seq_length": 32768,
+        "normalize_embeddings": true,
+        "pooling_mode": "lasttoken",
+        "query_prompt": "Instruct: Given an e-commerce search query, retrieve relevant product titles\nQuery:",
+        "gpu_dtype": "float16",
+        "display_name": "Qwen3-Embedding 0.6B",
+        "tags": ["llm", "long-context"]
     }
 ]

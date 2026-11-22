@@ -66,6 +66,10 @@ def load_model(
         )
         model = SentenceTransformer(modules=[word_model, pooling], device=device)
 
+    # float16 só em GPU (a T4 não suporta bfloat16; na CPU float16 é lento e impreciso)
+    if cfg.gpu_dtype == "float16" and str(device).startswith("cuda"):
+        model.half()
+
     # Aplica max_seq_length: override tem precedência sobre o config registrado
     if max_seq_length_override is not None:
         model.max_seq_length = max_seq_length_override

@@ -3,7 +3,12 @@
 Compara BM25, KNN (embeddings) e busca híbrida (RRF) no Amazon Shopping Queries Dataset (ESCI, locale US),
 usando nDCG@k (k = 5, 10, 20, 45) com os ganhos ESCI: E=1.0, S=0.1, C=0.01, I=0.0.
 
-Modelos (`src/models/models.json`): BERT, RoBERTa, ModernBERT, BGE-M3 e RexBERT.
+Modelos (`src/models/models.json`): BERT, RoBERTa, ModernBERT, BGE-M3, RexBERT e Qwen3-Embedding-0.6B (LLM).
+
+O Qwen roda em float16 na GPU (cabe numa T4 do Colab; `gpu_dtype` em `models.json`) e em float32 na CPU. As queries
+recebem o prefixo `query_prompt` do `models.json`; os produtos são indexados sem prefixo. Requer `transformers>=4.51`.
+
+O BM25 usa `multi_match` do tipo `most_fields` (soma dos scores dos campos) em `src/elasticsearch/searcher.py`.
 
 ## Pipeline
 
@@ -12,7 +17,7 @@ máquina local com o Elasticsearch em Docker.
 
 | Etapa | Onde | O que faz | Entrada | Saída |
 |---|---|---|---|---|
-| `01_prepare_data.ipynb` | Colab ou local | Baixa o ESCI, filtra o locale, amostra 200 mil produtos, EDA | (download) | `data/processed/*.parquet` |
+| `01_prepare_data.ipynb` | Colab ou local | Baixa o ESCI, filtra o locale, mantém o catálogo completo (`N_PRODUCTS` opcional para amostrar), EDA | (download) | `data/processed/*.parquet` |
 | `02_generate_embeddings.ipynb` | **Colab (GPU)** | Gera os embeddings de cada modelo (float32) | `data/processed/products_us.parquet` | `data/embeddings/<modelo>.parquet` + `.meta.json` |
 | `scripts/index_embeddings.py` | **Local** | Indexa BM25 e um índice KNN por modelo no Elasticsearch, sem carregar modelos | produtos + embeddings | Índices `esci-<modelo>-us` |
 | `02b_validate_indexing.ipynb` | Local | Confere contagens, normas e buscas manuais | Índices | — |
